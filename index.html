@@ -126,6 +126,19 @@
             position: relative;
             margin: 0 auto;
             overflow: visible;
+            transition: box-shadow 0.2s ease;
+        }
+        
+        /* 되돌리기 효과 */
+        #board.undo-flash {
+            box-shadow: 0 0 20px rgba(76, 175, 255, 0.7);
+            animation: undo-pulse 0.3s ease-out;
+        }
+        
+        @keyframes undo-pulse {
+            0% { transform: scale(1); }
+            50% { transform: scale(0.98); }
+            100% { transform: scale(1); }
         }
 
         .cell {
@@ -406,11 +419,35 @@
             border-radius: 10px;
             font-weight: 600;
             cursor: pointer;
-            transition: transform .05s ease-out,background .2s;
+            transition: transform .05s ease-out,background .2s, box-shadow 0.2s;
         }
 
             .btn:active {
                 transform: scale(0.98)
+            }
+            
+            /* 몬스터 소환 버튼 스타일 */
+            #btnSpawnMonster {
+                background: #1c2e3e;
+                border-color: #3a7ea9;
+                color: #a9d4ff;
+            }
+            
+            #btnSpawnMonster:hover {
+                background: #24394d;
+                box-shadow: 0 0 8px rgba(58, 126, 169, 0.5);
+            }
+            
+            /* 조커 소환 버튼 스타일 */
+            #btnSpawnWildcard {
+                background: #3d2c13;
+                border-color: #bd9331;
+                color: #ffd57f;
+            }
+            
+            #btnSpawnWildcard:hover {
+                background: #4d3919;
+                box-shadow: 0 0 8px rgba(255, 215, 0, 0.5);
             }
 
         .msg {
@@ -678,9 +715,12 @@
         <div id="board"></div>
         <div id="controlBar">
             <button class="btn" id="btnNew">새 게임</button>
+            <button class="btn" id="btnUndo">되돌리기 (3회)</button>
             <button class="btn" id="btnResetId">아이디 초기화</button>
             <button class="btn" id="btnRankManual">랭킹 불러오기</button>
             <button class="btn" id="btnBlockRemoval">블록 제거 (3회)</button>
+            <button class="btn" id="btnSpawnMonster">몬스터 소환 (5회)</button>
+            <button class="btn" id="btnSpawnWildcard">조커 소환 (2회)</button>
         </div>
     </div>
     <div class="msg" id="toast"></div>
@@ -836,6 +876,11 @@
             let blockRemovalMode = false; // 블록 제거 모드 활성화 여부
             let blockRemovalUsesLeft = 3; // 남은 블록 제거 횟수
             
+            // 되돌리기, 소환 기능 제한 횟수 관련 변수
+            let undoUsesLeft = 3; // 남은 되돌리기 횟수
+            let monsterSpawnUsesLeft = 5; // 남은 몬스터 소환 횟수
+            let wildcardSpawnUsesLeft = 2; // 남은 조커 소환 횟수
+            
             // 블록 제거 버튼 업데이트 함수
             function updateBlockRemovalButton() {
                 const btn = document.getElementById('btnBlockRemoval');
@@ -861,6 +906,69 @@
                         btn.style.boxShadow = "none";
                     }
                 }
+            }
+            
+            // 되돌리기 버튼 업데이트 함수
+            function updateUndoButton() {
+                const btnUndo = document.getElementById('btnUndo');
+                if (!btnUndo) return;
+                
+                // 히스토리가 없거나 남은 횟수가 0이면 비활성화
+                if (history.length === 0 || undoUsesLeft <= 0) {
+                    btnUndo.disabled = true;
+                    btnUndo.style.opacity = "0.5";
+                    
+                    // 횟수에 따른 텍스트 설정
+                    if (undoUsesLeft <= 0) {
+                        btnUndo.textContent = `되돌리기 (완료)`;
+                    } else {
+                        btnUndo.textContent = `되돌리기 (${undoUsesLeft}회)`;
+                    }
+                } else {
+                    btnUndo.disabled = false;
+                    btnUndo.style.opacity = "1";
+                    btnUndo.textContent = `되돌리기 (${undoUsesLeft}회)`;
+                }
+            }
+            
+            // 몬스터 소환 버튼 업데이트 함수
+            function updateMonsterSpawnButton() {
+                const btn = document.getElementById('btnSpawnMonster');
+                if (!btn) return;
+                
+                if (monsterSpawnUsesLeft <= 0) {
+                    btn.textContent = "몬스터 소환 (완료)";
+                    btn.disabled = true;
+                    btn.style.opacity = "0.5";
+                } else {
+                    btn.textContent = `몬스터 소환 (${monsterSpawnUsesLeft}회)`;
+                    btn.disabled = false;
+                    btn.style.opacity = "1";
+                }
+            }
+            
+            // 조커 소환 버튼 업데이트 함수
+            function updateWildcardSpawnButton() {
+                const btn = document.getElementById('btnSpawnWildcard');
+                if (!btn) return;
+                
+                if (wildcardSpawnUsesLeft <= 0) {
+                    btn.textContent = "조커 소환 (완료)";
+                    btn.disabled = true;
+                    btn.style.opacity = "0.5";
+                } else {
+                    btn.textContent = `조커 소환 (${wildcardSpawnUsesLeft}회)`;
+                    btn.disabled = false;
+                    btn.style.opacity = "1";
+                }
+            }
+            
+            // 모든 버튼 상태 업데이트
+            function updateAllButtons() {
+                updateBlockRemovalButton();
+                updateUndoButton();
+                updateMonsterSpawnButton();
+                updateWildcardSpawnButton();
             }
 
             const board = document.getElementById('board');
@@ -1168,6 +1276,12 @@
                 // 기존 일반 타일 로직
                 return [1, 1, 1, 1, 3, 3, 9][(Math.random() * 7) | 0];
             }
+            
+            // 와일드카드를 제외한 일반 몬스터만 생성하는 함수
+            function randomValueNoWildcard() {
+                // 일반 몬스터만 랜덤 생성 (와일드카드 제외)
+                return [1, 1, 1, 1, 3, 3, 9][(Math.random() * 7) | 0];
+            }
 
             /* ====== 셀 & 렌더링 ====== */
             function drawCell(r, c, opt = {}) {
@@ -1321,7 +1435,12 @@
                 blockRemovalUsesLeft = 3;
                 updateBlockRemovalButton();
                 
+                // 모든 버튼 초기 상태 설정 (사용 횟수 표시)
+                updateAllButtons();
+                
                 newGame();
+                // 모든 버튼 상태 업데이트 (사용 횟수 표시)
+                updateAllButtons();
                 document.getElementById('btnRestart').addEventListener('click', () => {
                     popup.classList.remove('show'); newGame();
                 });
@@ -1331,6 +1450,7 @@
                     else alert("아직 최고 기록이 없습니다.");
                 });
                 document.getElementById('btnNew').addEventListener('click', () => { newGame(); });
+                document.getElementById('btnUndo').addEventListener('click', undoMove);
                 document.getElementById('btnResetId').addEventListener('click', () => { askPlayerId(true); });
 
                 // 🔥 여기 추가
@@ -1342,6 +1462,36 @@
 
                 // 블록 제거 모드 버튼 설정
                 document.getElementById('btnBlockRemoval').addEventListener('click', toggleBlockRemovalMode);
+                
+                // 몬스터 소환 버튼 설정
+                document.getElementById('btnSpawnMonster').addEventListener('click', function() {
+                    // 애니메이션 진행 중에는 입력 무시
+                    if (isAnimating) {
+                        info("애니메이션이 진행 중입니다. 잠시 후 다시 시도하세요.", "warn");
+                        return;
+                    }
+                    
+                    // 현재 상태 저장
+                    saveSnapshot();
+                    
+                    // 몬스터 소환
+                    spawnMonsterOnly();
+                });
+                
+                // 조커 소환 버튼 설정
+                document.getElementById('btnSpawnWildcard').addEventListener('click', function() {
+                    // 애니메이션 진행 중에는 입력 무시
+                    if (isAnimating) {
+                        info("애니메이션이 진행 중입니다. 잠시 후 다시 시도하세요.", "warn");
+                        return;
+                    }
+                    
+                    // 현재 상태 저장
+                    saveSnapshot();
+                    
+                    // 조커 소환
+                    spawnWildcardOnly();
+                });
                 
                 // updateBlockRemovalButton 함수는 전역으로 옮겼습니다
                 
@@ -1467,6 +1617,9 @@
                                 
                                 const path = findPathViaEmpties(from, to);
                                 const gsize = validation.groupSize;
+                                
+                                // 이동하기 전 현재 상태를 저장
+                                saveSnapshot();
 
                     // 애니메이션 시작
                     isAnimating = true;
@@ -1486,7 +1639,7 @@
                         turn++; untilSpawn--; blockSpawnTurn--;
                         if (untilSpawn === 0) { spawnBatch(); untilSpawn = SPAWN_EVERY; }
                         if (blockSpawnTurn === 0) { spawnBlock(); blockSpawnTurn = BLOCK_SPAWN_INTERVAL; }
-                        saveSnapshot();
+                        // saveSnapshot 호출은 모든 처리가 완료된 후 한 번만 수행됨
                         elTurn.textContent = String(turn);
                         elNext.textContent = String(untilSpawn);
                         elBlock.textContent = String(blockSpawnTurn);
@@ -1496,6 +1649,8 @@
                         
                         // 애니메이션 완료
                         isAnimating = false;
+                        
+                        // 이동 처리가 완료되었지만 이동 전 상태는 이미 저장되어 있음
                         
                         checkGameOverSoon();
                     });
@@ -1647,7 +1802,7 @@
                         return neighborValue === WILDCARD_TILE || val === WILDCARD_TILE || neighborValue === val;
                     });
             }
-            // 향상된 floodSame 함수: 변수 그룹 크기 지원 및 일관된 순서 보장
+            // 향상된 floodSame 함수: 변수 그룹 크기 지원, 와일드카드 값 제한(9 이하), 일관된 순서 보장
             function floodSame(sr, sc, val, g = grid, maxSize = 3) { // maxSize 매개변수 추가 (기본값 3)
                 // BFS 방식으로 구현하여 일관된 순서 보장
                 const vis = Array.from({ length: ROWS }, () => Array(COLS).fill(false));
@@ -1712,10 +1867,27 @@
                         const normalMatch = neighborTileValue === val;
                         
                         // 와일드카드 매칭 로직
-                        const wildcardMatch = 
-                            (firstNonWildcardValue === null) || // 모든 타일이 와일드카드인 경우
-                            (neighborIsWildcard && (!currentTileIsWildcard ? tileValue === firstNonWildcardValue : true)) || // 이웃이 와일드카드
-                            (currentTileIsWildcard && (!neighborIsWildcard ? neighborTileValue === firstNonWildcardValue : true)); // 현재가 와일드카드
+                        // 와일드카드는 9 이하의 타일에만 작동하도록 제한
+                        let wildcardMatch = false;
+                        
+                        // 모든 타일이 와일드카드인 경우
+                        if (firstNonWildcardValue === null) {
+                            wildcardMatch = true;
+                        }
+                        // 이웃이 와일드카드인 경우
+                        else if (neighborIsWildcard && !currentTileIsWildcard) {
+                            // 현재 타일이 첫 비와일드카드 값과 같고, 값이 9 이하인 경우만 매칭
+                            wildcardMatch = tileValue === firstNonWildcardValue && firstNonWildcardValue <= 9;
+                        }
+                        // 현재가 와일드카드인 경우
+                        else if (currentTileIsWildcard && !neighborIsWildcard) {
+                            // 이웃 타일이 첫 비와일드카드 값과 같고, 값이 9 이하인 경우만 매칭
+                            wildcardMatch = neighborTileValue === firstNonWildcardValue && firstNonWildcardValue <= 9;
+                        }
+                        // 둘 다 와일드카드인 경우
+                        else if (currentTileIsWildcard && neighborIsWildcard) {
+                            wildcardMatch = true;
+                        }
                         
                         if (normalMatch || wildcardMatch) {
                             vis[nr][nc] = true;
@@ -1748,9 +1920,18 @@
                 placeRandomBlocks(-1, BLOCK_MIN + ((Math.random() * (BLOCK_MAX - BLOCK_MIN + 1)) | 0));
                 placeRandomTilesAvoidingTriples(INIT_TILES, 400);
                 renderAll(true);
-                requestAnimationFrame(() => { resolveAutoMerges(); saveSnapshot(); });
+                requestAnimationFrame(() => { resolveAutoMerges(); /* saveSnapshot() 제거 - 게임 초기화 시에는 스냅샷을 저장하지 않음 */ });
                 turn = 0; untilSpawn = SPAWN_EVERY; spawnCount = 0; blockSpawnTurn = BLOCK_SPAWN_INTERVAL; selected = null; gameOverShown = false;
                 blockRemovalMode = false; blockRemovalUsesLeft = 3; // 블록 제거 모드 및 횟수 초기화
+                history = []; // 히스토리 초기화
+                
+                // 기능 사용 횟수 초기화
+                undoUsesLeft = 3;
+                monsterSpawnUsesLeft = 5;
+                wildcardSpawnUsesLeft = 2;
+                
+                // 모든 버튼 상태 업데이트 (사용 횟수 표시)
+                updateAllButtons();
                 elTurn.textContent = '0'; elNext.textContent = String(SPAWN_EVERY); elBlock.textContent = String(BLOCK_SPAWN_INTERVAL);
                 // 초기 화면에서 블록 생성 턴 표시
                 updateBlockRemovalButton(); // 블록 제거 버튼 업데이트
@@ -1830,6 +2011,94 @@
                 grid[p.r][p.c] = randomValue();
                 drawCell(p.r, p.c, { spawn: true });
                 resolveAutoMerges();
+                return true;
+            }
+            
+            // 몬스터만 랜덤 소환하는 함수 (조커 제외)
+            function spawnMonsterOnly() {
+                // 남은 횟수 확인
+                if (monsterSpawnUsesLeft <= 0) {
+                    info("몬스터 소환 기능을 모두 사용했습니다.", "err");
+                    return false;
+                }
+                
+                const E = listEmpty(); 
+                if (!E.length) {
+                    info("더 이상 몬스터를 소환할 공간이 없습니다.", "err");
+                    return false;
+                }
+                
+                const p = E[(Math.random() * E.length) | 0];
+                grid[p.r][p.c] = randomValueNoWildcard();
+                drawCell(p.r, p.c, { spawn: true });
+                
+                // 소환 효과음 재생
+                sounds.move.currentTime = 0;
+                playSoundSafely(sounds.move);
+                
+                // 파티클 효과 표시
+                const cellElement = board.children[p.r * COLS + p.c];
+                const rect = cellElement.getBoundingClientRect();
+                createParticles(rect.left + rect.width/2, rect.top + rect.height/2, 10, 1.0);
+                
+                // 사용 횟수 차감 및 버튼 업데이트
+                monsterSpawnUsesLeft--;
+                updateMonsterSpawnButton();
+                
+                // 병합 가능한 그룹이 있는지 확인
+                resolveAutoMerges();
+                
+                // 게임 오버 체크
+                checkGameOverSoon();
+                
+                return true;
+            }
+            
+            // 조커(와일드카드)만 소환하는 함수
+            function spawnWildcardOnly() {
+                // 남은 횟수 확인
+                if (wildcardSpawnUsesLeft <= 0) {
+                    info("조커 소환 기능을 모두 사용했습니다.", "err");
+                    return false;
+                }
+                
+                const E = listEmpty();
+                if (!E.length) {
+                    info("더 이상 조커를 소환할 공간이 없습니다.", "err");
+                    return false;
+                }
+                
+                const p = E[(Math.random() * E.length) | 0];
+                grid[p.r][p.c] = WILDCARD_TILE; // 와일드카드 타일 값 설정
+                drawCell(p.r, p.c, { spawn: true });
+                
+                // 특별 효과음 재생 (메가 머지 효과음 사용)
+                sounds.special.megaMerge.currentTime = 0;
+                playSoundSafely(sounds.special.megaMerge);
+                
+                // 화려한 파티클 효과 표시
+                const cellElement = board.children[p.r * COLS + p.c];
+                const rect = cellElement.getBoundingClientRect();
+                createParticles(rect.left + rect.width/2, rect.top + rect.height/2, 20, 1.5);
+                
+                // 화면 번심 효과
+                const flash = document.createElement('div');
+                flash.className = 'screen-flash';
+                document.body.appendChild(flash);
+                setTimeout(() => flash.remove(), 300);
+                
+                // 사용 횟수 차감 및 버튼 업데이트
+                wildcardSpawnUsesLeft--;
+                updateWildcardSpawnButton();
+                
+                // 병합 가능한 그룹이 있는지 확인
+                resolveAutoMerges();
+                
+                // 게임 오버 체크
+                checkGameOverSoon();
+                
+                info("✨ 조커 몬스터가 소환되었습니다!");
+                
                 return true;
             }
 
@@ -1931,6 +2200,9 @@
                     return WILDCARD_TILE;  // 와일드카드 반환
                 }
                 
+                // 와일드카드가 포함된 그룹에서 일반 타일 값이 9보다 클 경우 처리
+                // (와일드카드가 9 이하의 타일에만 매칭되도록 하는 로직과 일관성 유지)
+                
                 // 일반 타일이 하나 이상 있는 경우
                 // 그룹에서 가장 큰 일반 타일의 값을 찾음
                 const regularTileValues = group.tiles
@@ -1979,6 +2251,9 @@
                 if (group.wildcardCount === group.size) {
                     return WILDCARD_TILE;  // 와일드카드 반환
                 }
+                
+                // 와일드카드는 9 이하의 타일에만 매칭되도록 제한
+                // (플러드필 로직과 일관성 유지)
                 
                 // 주변 맥락을 분석하여 와일드카드의 최적 값 결정
                 // 이 함수는 현재 그룹에 일반 타일이 하나라도 있다고 가정
@@ -2149,9 +2424,8 @@
                     forcePivot = null;  // 현재 병합 후에는 forcePivot 재설정
                 }
                 
-                if (merged) {
-                    saveSnapshot();
-                }
+                // 자동 병합 및 모든 처리가 완료되었음
+                // saveSnapshot 호출은 모든 처리가 완료된 후 한 번만 수행됨
                 
                 // 병합 결과 반환
                 return {
@@ -2243,6 +2517,84 @@
             function saveSnapshot() {
                 history.push({ grid: cloneGrid(grid), turn, untilSpawn, blockSpawnTurn });
                 if (history.length > 50) history.shift();
+                
+                // 되돌리기 버튼 활성화 상태 업데이트
+                updateUndoButton();
+            }
+            
+            function updateUndoButton() {
+                const btnUndo = document.getElementById('btnUndo');
+                if (!btnUndo) return;
+                
+                if (history.length === 0) {
+                    btnUndo.disabled = true;
+                    btnUndo.style.opacity = "0.5";
+                } else {
+                    btnUndo.disabled = false;
+                    btnUndo.style.opacity = "1";
+                }
+            }
+            
+            function undoMove() {
+                // 되돌릴 이동이 없으면 메시지 표시
+                if (history.length === 0) {
+                    info("되돌릴 이동이 없습니다.", "warn");
+                    return false;
+                }
+                
+                // 남은 되돌리기 횟수 확인
+                if (undoUsesLeft <= 0) {
+                    info("되돌리기 기능을 모두 사용했습니다.", "err");
+                    return false;
+                }
+                
+                // 애니메이션 진행 중에는 되돌리기 불가
+                if (isAnimating) {
+                    info("애니메이션이 진행 중입니다. 잠시 후 다시 시도하세요.", "warn");
+                    return false;
+                }
+                
+                // 게임 오버 화면이 표시된 상태에서는 되돌리기 불가
+                if (gameOverShown) {
+                    info("게임 오버 상태에서는 되돌리기를 사용할 수 없습니다.", "warn");
+                    return false;
+                }
+                
+                // 이전 상태 가져오기
+                const prevState = history.pop();
+                
+                // 게임 상태 복원
+                grid = prevState.grid;
+                turn = prevState.turn;
+                untilSpawn = prevState.untilSpawn;
+                blockSpawnTurn = prevState.blockSpawnTurn;
+                
+                // UI 업데이트
+                renderAll();
+                selected = null;
+                highlightSelection();
+                clearPossibleMoves();
+                
+                // 되돌리기 시각적 효과 - 보드 전체 강조 효과
+                board.classList.add('undo-flash');
+                setTimeout(() => {
+                    board.classList.remove('undo-flash');
+                }, 300);
+                
+                // 되돌리기 효과음
+                sounds.click.currentTime = 0;
+                playSoundSafely(sounds.click);
+                
+                // 사용 횟수 차감
+                undoUsesLeft--;
+                
+                // 성공 메시지 표시
+                info("이전 이동으로 되돌아갔습니다.", "");
+                
+                // 되돌리기 버튼 상태 업데이트
+                updateUndoButton();
+                
+                return true;
             }
 
             /* ====== 결과 ====== */
@@ -2444,6 +2796,14 @@
 </body>
 
 </html>
+
+
+
+
+
+
+
+
 
 
 
