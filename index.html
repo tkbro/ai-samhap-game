@@ -697,6 +697,111 @@
             font-size: 13px;
             color: var(--warn);
         }
+        
+        /* 보상 선택 팝업 스타일 */
+        #rewardPopup {
+            position: fixed;
+            inset: 0;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background: rgba(0,0,0,0.65);
+            z-index: 999;
+            visibility: hidden;
+            opacity: 0;
+            transition: opacity .25s;
+        }
+        
+        #rewardPopup.show {
+            visibility: visible;
+            opacity: 1;
+        }
+        
+        #rewardBox {
+            background: #161c29;
+            padding: 24px;
+            border-radius: 16px;
+            text-align: center;
+            min-width: 360px;
+            max-width: 96vw;
+            box-shadow: 0 10px 28px rgba(0,0,0,0.6);
+        }
+        
+        #rewardBox h2 {
+            margin: 0 0 8px;
+            font-size: 20px;
+            color: var(--accent);
+        }
+        
+        #rewardBox p {
+            margin: 6px 0 20px;
+            font-size: 15px;
+            color: var(--fg);
+        }
+        
+        .reward-options {
+            display: flex;
+            justify-content: center;
+            gap: 15px;
+            flex-wrap: wrap;
+            margin-top: 20px;
+        }
+        
+        .reward-option {
+            width: 80px;
+            height: 100px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: space-between;
+            padding: 10px;
+            border-radius: 10px;
+            background: #1c2336;
+            border: 2px solid #2a3443;
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+        
+        .reward-option:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 5px 15px rgba(70, 211, 255, 0.4);
+            border-color: var(--accent);
+        }
+        
+        .reward-icon {
+            width: 50px;
+            height: 50px;
+            background-size: contain;
+            background-position: center;
+            background-repeat: no-repeat;
+        }
+        
+        .undo-icon {
+            background-image: url('images/undo-icon.png');
+            filter: drop-shadow(0 0 5px rgba(70, 211, 255, 0.7));
+        }
+        
+        .block-removal-icon {
+            background-image: url('images/block-removal-icon.png');
+            filter: drop-shadow(0 0 5px rgba(103, 255, 154, 0.7));
+        }
+        
+        .monster-spawn-icon {
+            background-image: url('images/monster-spawn-icon.png');
+            filter: drop-shadow(0 0 5px rgba(255, 136, 77, 0.7));
+        }
+        
+        .wildcard-spawn-icon {
+            background-image: url('images/wildcard-icon.png');
+            filter: drop-shadow(0 0 5px rgba(255, 215, 0, 0.7));
+        }
+        
+        .reward-name {
+            font-size: 12px;
+            font-weight: 500;
+            margin-top: 8px;
+            color: #cfe5ff;
+        }
     </style>
 </head>
 <body>
@@ -735,6 +840,30 @@
                 <button class="btn" id="btnRestart">다시 시작</button>
                 <button class="btn" id="btnBack">돌아가기</button>
                 <button class="btn" id="btnViewBest">내 최고 기록 확인</button>
+            </div>
+        </div>
+    </div>
+    <div id="rewardPopup">
+        <div id="rewardBox">
+            <h2>보상 선택</h2>
+            <p>병합 성공! 보상을 선택하세요</p>
+            <div class="reward-options">
+                <div class="reward-option" data-type="undo">
+                    <div class="reward-icon undo-icon"></div>
+                    <div class="reward-name">되돌리기</div>
+                </div>
+                <div class="reward-option" data-type="blockRemoval">
+                    <div class="reward-icon block-removal-icon"></div>
+                    <div class="reward-name">블록 제거</div>
+                </div>
+                <div class="reward-option" data-type="monsterSpawn">
+                    <div class="reward-icon monster-spawn-icon"></div>
+                    <div class="reward-name">몬스터 소환</div>
+                </div>
+                <div class="reward-option" data-type="wildcardSpawn">
+                    <div class="reward-icon wildcard-spawn-icon"></div>
+                    <div class="reward-name">조커 소환</div>
+                </div>
             </div>
         </div>
     </div>
@@ -849,7 +978,7 @@
             const MEGA_INTERVAL = 5;
             const BLOCK_SPAWN_INTERVAL = 10;
             const WILDCARD_TILE = -2; // 특수 와일드카드 타일 (모든 타일과 매칭 가능)
-            const WILDCARD_SPAWN_CHANCE = 0.005; // 와일드카드 타일 등장 확률 
+            const WILDCARD_SPAWN_CHANCE = 0.01; // 와일드카드 타일 등장 확률 (1%)
             
             // 합성 애니메이션 설정
             const MERGE_ANIMATION_DURATION = 600; // ms
@@ -1384,6 +1513,9 @@
                             const val = grid[r][c];
                             // 현재 타일과 연결된 모든 타일을 찾기 위해 maxSize를 Infinity로 설정
                             const currentGroup = floodSame(r, c, val, grid, Infinity);
+                            
+                            // 이동 가능한 위치가 있는지 확인하기 위한 플래그
+                            let hasPossibleMoves = false;
 
                             // 모든 비어있는 칸을 순회하며 이동 가능 여부 확인
                             for (let tr = 0; tr < ROWS; tr++) {
@@ -1414,7 +1546,13 @@
 
                                     // 모든 조건을 통과하면 'possible-move' 클래스를 추가하여 하이라이트
                                     board.children[tr * COLS + tc].classList.add('possible-move');
+                                    hasPossibleMoves = true; // 이동 가능한 위치가 있음을 표시
                                 }
+                            }
+                            
+                            // 이동 가능한 위치가 없으면 에러 메시지 표시
+                            if (!hasPossibleMoves) {
+                                info("이 몬스터는 이동할 수 있는 위치가 없습니다.", "warn");
                             }
                         }
 
@@ -1494,6 +1632,9 @@
                 });
                 
                 // updateBlockRemovalButton 함수는 전역으로 옮겼습니다
+                
+                // 보상 옵션 이벤트 핸들러 초기화
+                initRewardHandlers();
                 
                 // 블록 제거 모드 토글 함수
                 function toggleBlockRemovalMode() {
@@ -1629,7 +1770,15 @@
                         // 애니메이션 완료 후 게임 로직 처리
                         if (gsize >= 3) {
                             // 🎵 머지 사운드 전용
-                            resolveAutoMerges(to);
+                            const mergeResult = resolveAutoMerges(to);
+                            
+                            // 병합 후 보상 조건 확인 및 팝업 표시
+                            if (shouldShowReward(mergeResult)) {
+                                // 약간의 지연 후 팝업 표시 (애니메이션이 완료된 후)
+                                setTimeout(() => {
+                                    showRewardPopup();
+                                }, 700); // 병합 애니메이션 완료 후 적당한 시간 지연
+                            }
                         } else {
                             // 🎵 이동 사운드 (머지 아닐 때만)
                             sounds.move.currentTime = 0;
@@ -1917,10 +2066,26 @@
             function newGame() {
                 popupTitle.textContent = "게임 오버";
                 grid = makeGrid();
+                
+                // 게임 시작 시 안내 메시지 표시
+                setTimeout(() => {
+                    info("이동할 몬스터를 클릭해주세요.", "")
+                }, 500); // 0.5초 후 안내 메시지 표시
+
                 placeRandomBlocks(-1, BLOCK_MIN + ((Math.random() * (BLOCK_MAX - BLOCK_MIN + 1)) | 0));
                 placeRandomTilesAvoidingTriples(INIT_TILES, 400);
                 renderAll(true);
-                requestAnimationFrame(() => { resolveAutoMerges(); /* saveSnapshot() 제거 - 게임 초기화 시에는 스냅샷을 저장하지 않음 */ });
+                requestAnimationFrame(() => { 
+                    const mergeResult = resolveAutoMerges(); 
+                    /* saveSnapshot() 제거 - 게임 초기화 시에는 스냅샷을 저장하지 않음 */ 
+                    
+                    // 게임 시작 시에도 보상 팝업 확인
+                    if (shouldShowReward(mergeResult)) {
+                        setTimeout(() => {
+                            showRewardPopup();
+                        }, 700);
+                    }
+                });
                 turn = 0; untilSpawn = SPAWN_EVERY; spawnCount = 0; blockSpawnTurn = BLOCK_SPAWN_INTERVAL; selected = null; gameOverShown = false;
                 blockRemovalMode = false; blockRemovalUsesLeft = 3; // 블록 제거 모드 및 횟수 초기화
                 history = []; // 히스토리 초기화
@@ -2010,7 +2175,14 @@
                 const p = E[(Math.random() * E.length) | 0];
                 grid[p.r][p.c] = randomValue();
                 drawCell(p.r, p.c, { spawn: true });
-                resolveAutoMerges();
+                const mergeResult = resolveAutoMerges();
+                
+                // 병합 후 보상 조건 확인 및 팝업 표시
+                if (shouldShowReward(mergeResult)) {
+                    setTimeout(() => {
+                        showRewardPopup();
+                    }, 700);
+                }
                 return true;
             }
             
@@ -2046,7 +2218,14 @@
                 updateMonsterSpawnButton();
                 
                 // 병합 가능한 그룹이 있는지 확인
-                resolveAutoMerges();
+                const mergeResult = resolveAutoMerges();
+                
+                // 병합 후 보상 조건 확인 및 팝업 표시
+                if (shouldShowReward(mergeResult)) {
+                    setTimeout(() => {
+                        showRewardPopup();
+                    }, 700);
+                }
                 
                 // 게임 오버 체크
                 checkGameOverSoon();
@@ -2092,7 +2271,14 @@
                 updateWildcardSpawnButton();
                 
                 // 병합 가능한 그룹이 있는지 확인
-                resolveAutoMerges();
+                const mergeResult = resolveAutoMerges();
+                
+                // 병합 후 보상 조건 확인 및 팝업 표시
+                if (shouldShowReward(mergeResult)) {
+                    setTimeout(() => {
+                        showRewardPopup();
+                    }, 700);
+                }
                 
                 // 게임 오버 체크
                 checkGameOverSoon();
@@ -2277,6 +2463,183 @@
                 }
             }
             
+            /**
+             * 머지 이벤트를 감지하고 결과를 반환하는 함수
+             * 
+             * @param {Object} [forcePivot=null] - 강제 피봇 위치 (옵션)
+             * @returns {Object} 머지 결과 정보
+             * @returns {boolean} .merged - 머지 발생 여부
+             * @returns {number} .score - 획득 점수
+             * @returns {number} .cascadeCount - 연쇄 병합 횟수
+             */
+            function checkMergeResult(forcePivot = null) {
+                // 기존 resolveAutoMerges 함수 활용하여 머지 결과 확인
+                const result = resolveAutoMerges(forcePivot);
+                return result;
+            }
+            
+            /**
+             * 머지 발생 후 보상 조건을 확인하는 함수
+             * 
+             * @param {Object} mergeResult - 머지 결과 정보 객체
+             * @returns {boolean} 보상 조건 충족 여부
+             */
+            function shouldShowReward(mergeResult) {
+                // 머지가 발생했는지 확인
+                // 조건: 병합이 일어나고 점수가 20을 초과하는 경우에만 보상 표시
+                return mergeResult && mergeResult.merged && mergeResult.score > 20;
+            }
+
+            /**
+             * 머지 후 보상 팝업을 표시하는 함수
+             * @returns {boolean} 팝업 표시 성공 여부
+             */
+            function showRewardPopup() {
+                // Get the reward popup element
+                const rewardPopup = document.getElementById('rewardPopup');
+                if (!rewardPopup) {
+                    return false;
+                }
+                
+                // Make sure the reward options are properly initialized
+                initRewardHandlers();
+                
+                // Show the popup
+                rewardPopup.classList.add('show');
+                
+                return true;
+            }
+
+            /**
+             * 보상 팝업을 닫는 함수
+             * @param {boolean} wasSelected - 보상이 선택되었는지 여부
+             * @returns {boolean} 팝업 닫기 성공 여부
+             */
+            function closeRewardPopup(wasSelected = true) {
+                const rewardPopup = document.getElementById('rewardPopup');
+                rewardPopup.classList.remove('show');
+                return true;
+            }
+
+            /**
+             * 특정 기능의 사용 가능 횟수를 증가시키는 함수
+             * @param {string} powerupType - 기능 타입 ("undo", "blockRemoval", "monsterSpawn", "wildcardSpawn")
+             * @param {number} amount - 증가시킬 횟수 (기본값: 1)
+             * @returns {boolean} 증가 처리 성공 여부
+             */
+            function incrementPowerupUses(powerupType, amount = 1) {
+                switch(powerupType) {
+                    case "undo":
+                        undoUsesLeft += amount;
+                        updateUndoButton();
+                        break;
+                    case "blockRemoval":
+                        blockRemovalUsesLeft += amount;
+                        updateBlockRemovalButton();
+                        break;
+                    case "monsterSpawn":
+                        monsterSpawnUsesLeft += amount;
+                        updateMonsterSpawnButton();
+                        break;
+                    case "wildcardSpawn":
+                        wildcardSpawnUsesLeft += amount;
+                        updateWildcardSpawnButton();
+                        break;
+                    default:
+                        return false;
+                }
+                
+                return true;
+            }
+
+            /**
+             * 보상 선택 시 처리하는 함수
+             * @param {string} rewardType - 보상 타입 ("undo", "blockRemoval", "monsterSpawn", "wildcardSpawn")
+             * @returns {boolean} 보상 처리 성공 여부
+             */
+            function selectReward(rewardType) {
+                if (!rewardType) {
+                    info('보상 선택 오류가 발생했습니다. 다시 시도해주세요.', 'err');
+                    return false;
+                }
+                
+                // 보상 이름 매핑
+                const rewardNames = {
+                    "undo": "되돌리기",
+                    "blockRemoval": "블록 제거",
+                    "monsterSpawn": "몬스터 소환",
+                    "wildcardSpawn": "조커 소환"
+                };
+                
+                // 명시적으로 각 보상 타입 처리
+                let success = false;
+                switch(rewardType) {
+                    case "undo":
+                        undoUsesLeft += 1;
+                        updateUndoButton();
+                        success = true;
+                        break;
+                    case "blockRemoval":
+                        blockRemovalUsesLeft += 1;
+                        updateBlockRemovalButton();
+                        success = true;
+                        break;
+                    case "monsterSpawn":
+                        monsterSpawnUsesLeft += 1;
+                        updateMonsterSpawnButton();
+                        success = true;
+                        break;
+                    case "wildcardSpawn":
+                        wildcardSpawnUsesLeft += 1;
+                        updateWildcardSpawnButton();
+                        success = true;
+                        break;
+                    default:
+                        success = false;
+                }
+                
+                // 모든 버튼 상태 업데이트 (한번에 모든 버튼 갱신)
+                updateAllButtons();
+                
+                // 팝업 닫기 (성공 여부와 관계없이 닫음)
+                closeRewardPopup(success);
+                
+                // 성공한 경우에만 안내 메시지 표시
+                if (success) {
+                    info(`${rewardNames[rewardType]} 기능이 1회 추가되었습니다!`);
+                } else {
+                    info('보상 선택 오류가 발생했습니다. 다시 시도해주세요.', 'err');
+                }
+                
+                return success;
+            }
+            
+            /**
+             * 보상 옵션 클릭 이벤트 핸들러 초기화
+             */
+            function initRewardHandlers() {
+                const rewardOptions = document.querySelectorAll('.reward-option');
+                
+                rewardOptions.forEach((option) => {
+                    // Remove any existing click listeners to avoid duplicates
+                    const newOption = option.cloneNode(true);
+                    option.parentNode.replaceChild(newOption, option);
+                    
+                    // Add the new click listener
+                    newOption.addEventListener('click', function(event) {
+                        // Stop event propagation to prevent any parent handlers from triggering
+                        event.stopPropagation();
+                        
+                        const rewardType = this.getAttribute('data-type');
+                        
+                        // Call selectReward with a slight delay to ensure the event completes
+                        setTimeout(() => {
+                            selectReward(rewardType);
+                        }, 10);
+                    });
+                });
+            }
+
             function resolveAutoMerges(forcePivot = null) {
                 let merged = false;
                 let totalScore = 0;
@@ -2426,6 +2789,13 @@
                 
                 // 자동 병합 및 모든 처리가 완료되었음
                 // saveSnapshot 호출은 모든 처리가 완료된 후 한 번만 수행됨
+                
+                // 병합 결과 정보 반환
+                return {
+                    merged,
+                    score: totalScore,
+                    cascadeCount
+                };
                 
                 // 병합 결과 반환
                 return {
@@ -2796,7 +3166,6 @@
 </body>
 
 </html>
-
 
 
 
